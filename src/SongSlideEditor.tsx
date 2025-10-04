@@ -1,8 +1,72 @@
 import React, { useState, useRef } from 'react';
-import { Upload, Download, Music, FileText, Globe } from 'lucide-react';
+import { Upload, Download, Music, FileText, Globe, ChevronDown, ChevronUp } from 'lucide-react';
+
+// Types
+interface Metadata {
+  name: string;
+  number: string;
+  title: string;
+  artist: string;
+  author: string;
+  composer: string;
+  publisher: string;
+  copyright: string;
+  CCLI: string;
+  year: string;
+  key: string;
+  bpm: string;
+  notes: string;
+}
+
+interface Chord {
+  id: string;
+  pos: number;
+  key: string;
+}
+
+interface SlideLine {
+  text: string;
+  chords: Chord[];
+}
+
+interface Slide {
+  group: string;
+  lines: SlideLine[];
+}
+
+interface Translations {
+  appTitle: string;
+  appSubtitle: string;
+  metadata: string;
+  songContent: string;
+  uploadFile: string;
+  pastePrompt: string;
+  selectApply: string;
+  preview: string;
+  showChords: string;
+  exportChordPro: string;
+  exportShow: string;
+  noPreview: string;
+  placeholders: {
+    [key: string]: string;
+  };
+  sections: {
+    verse: string;
+    chorus: string;
+    bridge: string;
+    preChorus: string;
+    intro: string;
+    outro: string;
+    tag: string;
+    interlude: string;
+  };
+  selectTextAlert: string;
+}
+
+type Language = 'en' | 'fr';
 
 // Translation files
-const translations = {
+const translations: Record<Language, Translations> = {
   en: {
     appTitle: "Song Slide Editor",
     appSubtitle: "Create and export songs for FreeShow",
@@ -44,7 +108,7 @@ const translations = {
     selectTextAlert: "Please select some text first"
   },
   fr: {
-    appTitle: "Éditeur de Chansons FreeShow",
+    appTitle: "Éditeur de Diapositives de Chansons",
     appSubtitle: "Créez et exportez des chansons pour FreeShow",
     metadata: "Métadonnées de la chanson",
     songContent: "Contenu de la chanson",
@@ -85,19 +149,15 @@ const translations = {
   }
 };
 
-const FreeShowEditor = () => {
-  const [language, setLanguage] = useState(() => {
-    return sessionStorage.getItem('freeshow_language') || 'en';
+const FreeShowEditor: React.FC = () => {
+  const [language, setLanguage] = useState<Language>(() => {
+    const saved = sessionStorage.getItem('freeshow_language');
+    return (saved === 'fr' ? 'fr' : 'en') as Language;
   });
 
   const t = translations[language];
 
-  // Save language preference
-  React.useEffect(() => {
-    sessionStorage.setItem('freeshow_language', language);
-  }, [language]);
-  // Load from memory on mount
-  const [metadata, setMetadata] = useState(() => {
+  const [metadata, setMetadata] = useState<Metadata>(() => {
     const saved = sessionStorage.getItem('freeshow_metadata');
     return saved ? JSON.parse(saved) : {
       name: '',
@@ -116,33 +176,17 @@ const FreeShowEditor = () => {
     };
   });
   
-  const [songText, setSongText] = useState(() => {
+  const [songText, setSongText] = useState<string>(() => {
     return sessionStorage.getItem('freeshow_songtext') || '';
   });
   
-  const [slides, setSlides] = useState([]);
-  const [showChords, setShowChords] = useState(true);
-  const fileInputRef = useRef(null);
-  const textareaRef = useRef(null);
+  const [slides, setSlides] = useState<Slide[]>([]);
+  const [showChords, setShowChords] = useState<boolean>(true);
+  const [metadataExpanded, setMetadataExpanded] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-save to sessionStorage whenever data changes
-  React.useEffect(() => {
-    sessionStorage.setItem('freeshow_metadata', JSON.stringify(metadata));
-  }, [metadata]);
-
-  React.useEffect(() => {
-    sessionStorage.setItem('freeshow_songtext', songText);
-  }, [songText]);
-
-  // Parse on mount if there's saved data
-  React.useEffect(() => {
-    if (songText) {
-      const parsed = parseChordPro(songText);
-      setSlides(parsed);
-    }
-  }, []);
-
-  const sectionColors = {
+  const sectionColors: Record<string, string> = {
     'Verse': '#5825f5',
     'Chorus': '#f5258a',
     'Bridge': '#25f58a',
@@ -153,12 +197,34 @@ const FreeShowEditor = () => {
     'Interlude': '#25f5d8'
   };
 
-  const parseChordPro = (text) => {
+  React.useEffect(() => {
+    sessionStorage.setItem('freeshow_language', language);
+  }, [language]);
+
+  React.useEffect(() => {
+    sessionStorage.setItem('freeshow_metadata', JSON.stringify(metadata));
+  }, [metadata]);
+
+  React.useEffect(() => {
+    sessionStorage.setItem('freeshow_songtext', songText);
+  }, [songText]);
+
+  React.useEffect(() => {
+    if (songText) {
+      const parsed = parseChordPro(songText);
+      setSlides(parsed);
+    }
+  }, []);
+
+  const parseChordPro = (text: string): Slide[] => {
     const lines = text.split('\n');
-    const parsedSlides = [];
-    let currentSection = null;
-    let currentLines = [];
-    let sectionCounter = { 'Verse': 0, 'Chorus': 0, 'Bridge': 0, 'Pre-Chorus': 0, 'Intro': 0, 'Outro': 0, 'Tag': 0, 'Interlude': 0 };
+    const parsedSlides: Slide[] = [];
+    let currentSection: string | null = null;
+    let currentLines: SlideLine[] = [];
+    const sectionCounter: Record<string, number> = { 
+      'Verse': 0, 'Chorus': 0, 'Bridge': 0, 'Pre-Chorus': 0, 
+      'Intro': 0, 'Outro': 0, 'Tag': 0, 'Interlude': 0 
+    };
 
     const finishSection = () => {
       if (currentSection && currentLines.length > 0) {
@@ -170,8 +236,7 @@ const FreeShowEditor = () => {
       }
     };
 
-    lines.forEach(line => {
-      // Parse metadata
+    lines.forEach((line: string) => {
       const metaMatch = line.match(/\{(title|t|artist|composer|author|copyright|ccli|key|year|tempo|bpm|comment|c):\s*([^}]+)\}/i);
       if (metaMatch) {
         const key = metaMatch[1].toLowerCase();
@@ -190,13 +255,11 @@ const FreeShowEditor = () => {
         return;
       }
 
-      // Parse section markers
       const startMatch = line.match(/\{(?:start_of_)?(verse|chorus|bridge|pre-?chorus|intro|outro|tag|interlude|v|c|b)(?::\s*(\d+))?\}/i);
       if (startMatch) {
         finishSection();
         let sectionType = startMatch[1].toLowerCase();
         
-        // Normalize section names
         if (sectionType === 'v') sectionType = 'verse';
         if (sectionType === 'c') sectionType = 'chorus';
         if (sectionType === 'b') sectionType = 'bridge';
@@ -218,27 +281,21 @@ const FreeShowEditor = () => {
         return;
       }
 
-      // Regular line - parse chords
       if (line.trim() && !line.startsWith('#') && !line.match(/^\{[^}]+\}$/)) {
         if (!currentSection) {
           currentSection = `Verse ${++sectionCounter['Verse']}`;
         }
         
-        // Extract chords and clean text
-        const chords = [];
+        const chords: Chord[] = [];
         let cleanText = '';
-        let currentPos = 0;
         
-        // Find all chord annotations [C] [G] etc
         const chordRegex = /\[([^\]]+)\]/g;
         let lastIndex = 0;
-        let match;
+        let match: RegExpExecArray | null;
         
         while ((match = chordRegex.exec(line)) !== null) {
-          // Add text before this chord
           cleanText += line.substring(lastIndex, match.index);
           
-          // Add chord at current position in clean text
           chords.push({
             id: Math.random().toString(36).substr(2, 5),
             pos: cleanText.length,
@@ -248,7 +305,6 @@ const FreeShowEditor = () => {
           lastIndex = match.index + match[0].length;
         }
         
-        // Add remaining text
         cleanText += line.substring(lastIndex);
         
         currentLines.push({
@@ -257,7 +313,6 @@ const FreeShowEditor = () => {
         });
       }
 
-      // Empty line might signal section end
       if (!line.trim() && currentLines.length > 0) {
         finishSection();
         currentSection = null;
@@ -268,18 +323,18 @@ const FreeShowEditor = () => {
     return parsedSlides;
   };
 
-  const handleTextChange = (text) => {
+  const handleTextChange = (text: string) => {
     setSongText(text);
     const parsed = parseChordPro(text);
     setSlides(parsed);
   };
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
-        const text = event.target.result;
+        const text = event.target?.result as string;
         setSongText(text);
         handleTextChange(text);
       };
@@ -287,7 +342,7 @@ const FreeShowEditor = () => {
     }
   };
 
-  const wrapSelection = (tag) => {
+  const wrapSelection = (tag: string) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
 
@@ -309,7 +364,6 @@ const FreeShowEditor = () => {
     setSongText(newText);
     handleTextChange(newText);
 
-    // Reset selection after the wrapped text
     setTimeout(() => {
       textarea.focus();
       const newCursorPos = start + wrapped.length;
@@ -321,10 +375,10 @@ const FreeShowEditor = () => {
     const timestamp = Date.now();
     const layoutId = 'layout_' + Math.random().toString(36).substr(2, 9);
     
-    const slidesObj = {};
-    const layoutSlides = [];
+    const slidesObj: Record<string, any> = {};
+    const layoutSlides: Array<{ id: string }> = [];
 
-    slides.forEach((slide, index) => {
+    slides.forEach((slide) => {
       const slideId = 'slide_' + Math.random().toString(36).substr(2, 9);
       const sectionType = slide.group.split(' ')[0];
       const color = sectionColors[sectionType] || '#5825f5';
@@ -339,7 +393,7 @@ const FreeShowEditor = () => {
         items: [
           {
             type: 'text',
-            lines: slide.lines.map(line => ({
+            lines: slide.lines.map((line: SlideLine) => ({
               align: 'text-align:center;',
               text: [
                 {
@@ -417,7 +471,6 @@ const FreeShowEditor = () => {
   const downloadChordProFile = () => {
     let chordProContent = '';
     
-    // Add metadata tags
     if (metadata.title) chordProContent += `{title: ${metadata.title}}\n`;
     if (metadata.artist) chordProContent += `{artist: ${metadata.artist}}\n`;
     if (metadata.author) chordProContent += `{author: ${metadata.author}}\n`;
@@ -431,7 +484,6 @@ const FreeShowEditor = () => {
     
     if (chordProContent) chordProContent += '\n';
     
-    // Add the song content
     chordProContent += songText;
     
     const blob = new Blob([chordProContent], { type: 'text/plain' });
@@ -467,37 +519,49 @@ const FreeShowEditor = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Panel - Input */}
           <div className="space-y-6">
-            {/* Metadata */}
-            <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6 border border-white/20">
-              <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                {t.metadata}
-              </h2>
-              <div className="grid grid-cols-2 gap-3">
-                {Object.keys(metadata).filter(key => key !== 'notes').map(key => (
-                  <input
-                    key={key}
-                    type="text"
-                    placeholder={t.placeholders[key] || key.charAt(0).toUpperCase() + key.slice(1)}
-                    value={metadata[key]}
-                    onChange={(e) => setMetadata({...metadata, [key]: e.target.value})}
-                    className="bg-white/5 border border-white/20 rounded px-3 py-2 text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-400"
-                  />
-                ))}
-              </div>
-              <div className="mt-3">
-                <textarea
-                  placeholder={t.placeholders.notes}
-                  value={metadata.notes}
-                  onChange={(e) => setMetadata({...metadata, notes: e.target.value})}
-                  className="w-full bg-white/5 border border-white/20 rounded px-3 py-2 text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-400 h-20 resize-none"
-                />
-              </div>
+            <div className="bg-white/10 backdrop-blur-lg rounded-lg border border-white/20">
+              <button
+                onClick={() => setMetadataExpanded(!metadataExpanded)}
+                className="w-full p-6 flex items-center justify-between hover:bg-white/5 transition-colors"
+              >
+                <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  {t.metadata}
+                </h2>
+                {metadataExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-white" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-white" />
+                )}
+              </button>
+              
+              {metadataExpanded && (
+                <div className="px-6 pb-6">
+                  <div className="grid grid-cols-2 gap-3">
+                    {(Object.keys(metadata) as Array<keyof Metadata>).filter(key => key !== 'notes').map(key => (
+                      <input
+                        key={key}
+                        type="text"
+                        placeholder={t.placeholders[key] || key.charAt(0).toUpperCase() + key.slice(1)}
+                        value={metadata[key]}
+                        onChange={(e) => setMetadata({...metadata, [key]: e.target.value})}
+                        className="bg-white/5 border border-white/20 rounded px-3 py-2 text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-400"
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-3">
+                    <textarea
+                      placeholder={t.placeholders.notes}
+                      value={metadata.notes}
+                      onChange={(e) => setMetadata({...metadata, notes: e.target.value})}
+                      className="w-full bg-white/5 border border-white/20 rounded px-3 py-2 text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-400 h-20 resize-none"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Song Input */}
             <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6 border border-white/20">
               <h2 className="text-xl font-semibold text-white mb-4">{t.songContent}</h2>
               
@@ -523,7 +587,7 @@ const FreeShowEditor = () => {
                 ref={textareaRef}
                 value={songText}
                 onChange={(e) => handleTextChange(e.target.value)}
-                placeholder="Paste ChordPro format or type lyrics...&#10;&#10;Example:&#10;{title: Amazing Grace}&#10;{artist: John Newton}&#10;&#10;{start_of_verse}&#10;Amazing grace how sweet the sound&#10;That saved a wretch like me&#10;{end_of_verse}&#10;&#10;{start_of_chorus}&#10;My chains are gone&#10;I've been set free&#10;{end_of_chorus}"
+                placeholder="Paste ChordPro format or type lyrics..."
                 className="w-full h-64 bg-white/5 border border-white/20 rounded-lg p-4 text-white placeholder-purple-300/30 focus:outline-none focus:border-purple-400 font-mono text-sm"
               />
               
@@ -553,7 +617,6 @@ const FreeShowEditor = () => {
             </div>
           </div>
 
-          {/* Right Panel - Preview */}
           <div className="space-y-6">
             <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6 border border-white/20">
               <div className="flex justify-between items-center mb-4">
@@ -619,7 +682,7 @@ const FreeShowEditor = () => {
                                       {(() => {
                                         let chordLine = '';
                                         let lastPos = 0;
-                                        line.chords.forEach((chord) => {
+                                        line.chords.forEach((chord: Chord) => {
                                           chordLine += ' '.repeat(Math.max(0, chord.pos - lastPos));
                                           chordLine += chord.key;
                                           lastPos = chord.pos + chord.key.length;
