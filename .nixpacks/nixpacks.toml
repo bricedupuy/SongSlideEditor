@@ -1,2 +1,11 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "npm-9_x", "caddy"]
+nixPkgs = ["nodejs_20", "npm-9_x", "caddy"] # Force Node.js 20
+
+[phases.install]
+cmds = ["npm ci"] # Ensure this is used by Nixpacks
+
+[phases.build]
+cmds = ["npm run build"] # Force Nixpacks to use your 'build' script
+
+[start]
+cmd = "npm run start" # Force Nixpacks to use your 'start' script
