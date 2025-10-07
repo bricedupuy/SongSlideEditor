@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",                // Or a more recent ES version supported by your Node.js version
+    "module": "Node16",                 // Crucial for Node.js server code (ES Modules syntax)
+    "moduleResolution": "Node16",       // How module paths are resolved
+    "outDir": "./dist-server",          // Where the compiled server JavaScript will go
+    "strict": true,                     // Enable all strict type-checking options
+    "esModuleInterop": true,            // Allows default imports from modules with no default export
+    "skipLibCheck": true,               // Skip type checking of all declaration files (*.d.ts)
+    "forceConsistentCasingInFileNames": true, // Ensure consistent file naming
+    "resolveJsonModule": true,          // Allow importing .json files
+    "noEmit": false                     // We *do* want TypeScript to emit JS files for the server
+  },
+  "include": ["src/server.ts"],     // Only include your server file(s) for this tsconfig
+  "exclude": ["node_modules", "dist"] // Exclude these directories
+}
